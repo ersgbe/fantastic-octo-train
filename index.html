@@ -4,8 +4,8 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Trust Wallet Connect</title>
-    <script src="https://cdn.jsdelivr.net/npm/@walletconnect/web3-provider@1.8.0/dist/umd/index.min.js"></script>
-    <script src="https://cdn.jsdelivr.net/npm/web3@1.8.0/dist/web3.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@walletconnect/ethereum-provider@2.9.0/dist/umd/index.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/ethers@5.7.2/dist/ethers.min.js"></script>
     <style>
         body {
             font-family: Arial, sans-serif;
@@ -39,62 +39,36 @@
             transform: translateY(-2px);
         }
         
-        .button:disabled {
-            background: #ccc;
-            cursor: not-allowed;
-        }
-        
-        .button-disconnect {
-            background: linear-gradient(135deg, #ff6b6b, #ee5a52);
-        }
-        
-        .status {
-            margin: 20px 0;
-            padding: 15px;
-            border-radius: 10px;
-            display: none;
-        }
-        
-        .success {
-            background: #d4edda;
-            color: #155724;
-            border: 1px solid #c3e6cb;
-        }
-        
-        .error {
-            background: #f8d7da;
-            color: #721c24;
-            border: 1px solid #f5c6cb;
-        }
-        
-        .wallet-info {
-            margin-top: 20px;
-            padding: 20px;
+        .config-section {
             background: #f8f9fa;
+            padding: 20px;
             border-radius: 10px;
+            margin: 20px 0;
             text-align: left;
         }
         
-        .address {
-            font-family: monospace;
-            background: #e9ecef;
+        .config-input {
+            width: 100%;
             padding: 10px;
-            border-radius: 5px;
-            word-break: break-all;
-        }
-        
-        .balance {
-            font-size: 24px;
-            font-weight: bold;
-            color: #28a745;
             margin: 10px 0;
+            border: 1px solid #ddd;
+            border-radius: 5px;
         }
     </style>
 </head>
 <body>
     <div class="container">
         <h1>🔗 Подключение Trust Wallet</h1>
-        <p>Подключите свой кошелек для доступа к DApp</p>
+        
+        <!-- Секция настройки Project ID -->
+        <div class="config-section">
+            <h3>⚙️ Настройки WalletConnect</h3>
+            <p><strong>Ваш Project ID:</strong> <span id="currentProjectId">Не установлен</span></p>
+            <input type="text" id="projectIdInput" class="config-input" 
+                   placeholder="Введите ваш Project ID с cloud.walletconnect.com">
+            <button class="button" onclick="saveProjectId()">💾 Сохранить Project ID</button>
+            <p><small>Получите Project ID на <a href="https://cloud.walletconnect.com" target="_blank">cloud.walletconnect.com</a></small></p>
+        </div>
         
         <button id="connectBtn" class="button" onclick="connectWallet()">
             🔐 Подключить Trust Wallet
@@ -106,7 +80,6 @@
             <div class="wallet-info">
                 <h3>✅ Кошелек подключен</h3>
                 <p><strong>Адрес:</strong> <span id="walletAddress" class="address"></span></p>
-                <p><strong>Баланс:</strong> <span id="walletBalance" class="balance"></span> ETH</p>
                 <p><strong>Сеть:</strong> <span id="walletNetwork"></span></p>
                 
                 <button class="button button-disconnect" onclick="disconnectWallet()">
@@ -114,136 +87,186 @@
                 </button>
             </div>
         </div>
-        
-        <div class="wallet-info">
-            <h3>📱 Как подключить:</h3>
-            <p>• Нажмите кнопку "Подключить Trust Wallet"</p>
-            <p>• Подтвердите подключение в приложении Trust Wallet</p>
-            <p>• Предоставьте необходимые разрешения</p>
-            <p>• Готово! Ваш кошелек подключен</p>
-        </div>
     </div>
 
     <script>
+        // ⚠️⚠️⚠️ ЗАМЕНИТЕ ЭТОТ PROJECT ID НА СВОЙ ⚠️⚠️⚠️
+        // Получите на https://cloud.walletconnect.com/
+        const DEFAULT_PROJECT_ID = '28c24fe653a420d9cb50e0c118e909bf'; // ← ЗАМЕНИТЕ ЭТО
+        
         // Глобальные переменные
         let walletConnectProvider = null;
-        let web3 = null;
+        let ethersProvider = null;
         let connectedAddress = null;
+        let currentProjectId = DEFAULT_PROJECT_ID;
         
-        // Элементы DOM
-        const connectBtn = document.getElementById('connectBtn');
-        const statusEl = document.getElementById('status');
-        const walletInfoEl = document.getElementById('walletInfo');
-        const walletAddressEl = document.getElementById('walletAddress');
-        const walletBalanceEl = document.getElementById('walletBalance');
-        const walletNetworkEl = document.getElementById('walletNetwork');
+        // Инициализация при загрузке
+        document.addEventListener('DOMContentLoaded', function() {
+            // Пытаемся загрузить сохраненный Project ID из localStorage
+            const savedProjectId = localStorage.getItem('walletconnect_project_id');
+            if (savedProjectId) {
+                currentProjectId = savedProjectId;
+            }
+            
+            // Показываем текущий Project ID
+            document.getElementById('currentProjectId').textContent = 
+                currentProjectId !== DEFAULT_PROJECT_ID ? currentProjectId : 'Не установлен';
+                
+            // Заполняем поле ввода
+            document.getElementById('projectIdInput').value = currentProjectId !== DEFAULT_PROJECT_ID ? currentProjectId : '';
+        });
+        
+        // Сохранение Project ID
+        function saveProjectId() {
+            const input = document.getElementById('projectIdInput');
+            const newProjectId = input.value.trim();
+            
+            if (newProjectId && newProjectId.length > 10) {
+                currentProjectId = newProjectId;
+                localStorage.setItem('walletconnect_project_id', newProjectId);
+                document.getElementById('currentProjectId').textContent = newProjectId;
+                showStatus('✅ Project ID сохранен!', 'success');
+            } else {
+                showStatus('❌ Введите корректный Project ID', 'error');
+            }
+        }
         
         // Показ статуса
         function showStatus(message, type = 'success') {
+            // Создаем элемент статуса если его нет
+            let statusEl = document.getElementById('status');
+            if (!statusEl) {
+                statusEl = document.createElement('div');
+                statusEl.id = 'status';
+                statusEl.className = 'status';
+                document.querySelector('.container').appendChild(statusEl);
+            }
+            
             statusEl.textContent = message;
-            statusEl.className = `status ${type}`;
             statusEl.style.display = 'block';
-        }
-        
-        // Скрыть статус
-        function hideStatus() {
-            statusEl.style.display = 'none';
-        }
-        
-        // Генерация динамического WalletConnect URI
-        function generateWalletConnectURI() {
-            // Генерируем случайный ключ для сессии
-            const randomKey = Math.random().toString(36).substring(2) + 
-                            Date.now().toString(36) + 
-                            Math.random().toString(36).substring(2);
+            statusEl.style.background = type === 'success' ? '#d4edda' : '#f8d7da';
+            statusEl.style.color = type === 'success' ? '#155724' : '#721c24';
+            statusEl.style.padding = '15px';
+            statusEl.style.borderRadius = '10px';
+            statusEl.style.margin = '20px 0';
             
-            // Создаем уникальный URI для каждой сессии
-            const wcURI = `wc:${randomKey}@1?bridge=https%3A%2F%2Fbridge.walletconnect.org&key=${btoa(randomKey).substring(0,64)}`;
-            
-            return wcURI;
+            setTimeout(() => {
+                statusEl.style.display = 'none';
+            }, 5000);
         }
         
-        // Подключение кошелька
+        // Основная функция подключения
         async function connectWallet() {
+            // Проверяем, установлен ли Project ID
+            if (!currentProjectId || currentProjectId === DEFAULT_PROJECT_ID) {
+                showStatus('❌ Сначала настройте Project ID в поле выше', 'error');
+                return;
+            }
+            
             const isMobile = /Android|iPhone|iPad|iPod/i.test(navigator.userAgent);
-            const isIOS = /iPhone|iPad|iPod/i.test(navigator.userAgent);
-            const isAndroid = /Android/i.test(navigator.userAgent);
             
             try {
+                const connectBtn = document.getElementById('connectBtn');
                 connectBtn.disabled = true;
                 connectBtn.textContent = '⏳ Подключаемся...';
-                hideStatus();
                 
                 if (isMobile) {
-                    // Генерируем динамический URI для WalletConnect
-                    const wcURI = generateWalletConnectURI();
-                    console.log('Generated WC URI:', wcURI);
-                    
-                    if (isIOS) {
-                        // Deeplink для iOS Trust Wallet
-                        const trustWalletDeeplink = `trust://wc?uri=${encodeURIComponent(wcURI)}`;
-                        window.location.href = trustWalletDeeplink;
-                        
-                        // Fallback через 2 секунды
-                        setTimeout(() => {
-                            if (!connectedAddress) {
-                                window.location.href = 'https://apps.apple.com/app/trust-wallet/id1288339409';
-                            }
-                        }, 2000);
-                        
-                    } else if (isAndroid) {
-                        // Intent для Android Trust Wallet
-                        const intentUrl = `intent://wc?uri=${encodeURIComponent(wcURI)}#Intent;package=com.wallet.crypto.trustapp;scheme=trust;end;`;
-                        window.location.href = intentUrl;
-                        
-                        // Fallback через 2 секунды
-                        setTimeout(() => {
-                            if (!connectedAddress) {
-                                window.location.href = 'https://play.google.com/store/apps/details?id=com.wallet.crypto.trustapp';
-                            }
-                        }, 2000);
-                    }
-                    
-                    // Инициализируем WalletConnect провайдер
-                    await initializeWalletConnect(wcURI);
-                    
+                    await connectMobile();
                 } else {
-                    // Для десктопа используем MetaMask или WalletConnect
-                    await initializeDesktopWallet();
+                    await connectDesktop();
                 }
                 
             } catch (error) {
                 console.error('Connection error:', error);
-                showStatus(`Ошибка подключения: ${error.message}`, 'error');
+                showStatus(`❌ Ошибка: ${error.message}`, 'error');
                 resetConnectionButton();
             }
         }
         
-        // Инициализация WalletConnect для мобильных устройств
-        async function initializeWalletConnect(wcURI) {
-            try {
-                // Создаем провайдер WalletConnect
-                walletConnectProvider = new WalletConnectProvider.default({
-                    rpc: {
-                        1: "https://mainnet.infura.io/v3/9aa3d95b3bc440fa88ea12eaa4456161",
-                        56: "https://bsc-dataseed.binance.org/",
-                        137: "https://polygon-rpc.com/"
-                    },
-                    chainId: 1,
-                    qrcode: false,
-                    connector: {
-                        uri: wcURI
+        // Подключение для мобильных устройств
+        async function connectMobile() {
+            const isIOS = /iPhone|iPad|iPod/i.test(navigator.userAgent);
+            
+            // Создаем провайдер для генерации URI
+            walletConnectProvider = await EthereumProvider.init({
+                projectId: currentProjectId, // ← ИСПОЛЬЗУЕМ НАСТРОЕННЫЙ PROJECT ID
+                chains: [1],
+                showQrModal: false
+            });
+            
+            // Получаем URI для подключения
+            const uri = await walletConnectProvider.connect();
+            
+            // Формируем деплинк для Trust Wallet
+            const encodedUri = encodeURIComponent(uri);
+            
+            if (isIOS) {
+                // Для iOS
+                window.location.href = `trust://wc?uri=${encodedUri}`;
+            } else {
+                // Для Android
+                window.location.href = `intent://wc?uri=${encodedUri}#Intent;package=com.wallet.crypto.trustapp;scheme=trust;end;`;
+            }
+            
+            // Fallback
+            setTimeout(() => {
+                if (!connectedAddress) {
+                    if (isIOS) {
+                        window.location.href = 'https://apps.apple.com/app/trust-wallet/id1288339409';
+                    } else {
+                        window.location.href = 'https://play.google.com/store/apps/details?id=com.wallet.crypto.trustapp';
                     }
+                }
+            }, 2000);
+            
+            showStatus('📱 Открываем Trust Wallet... Подтвердите подключение.');
+        }
+        
+        // Подключение для десктопа
+        async function connectDesktop() {
+            try {
+                showStatus('🔄 Инициализируем подключение...');
+                
+                // Создаем провайдер WalletConnect v2
+                walletConnectProvider = await EthereumProvider.init({
+                    projectId: currentProjectId, // ← ИСПОЛЬЗУЕМ НАСТРОЕННЫЙ PROJECT ID
+                    chains: [1],
+                    optionalChains: [56, 137, 42161, 10],
+                    showQrModal: true, // WalletConnect сам покажет модалку с QR кодом
+                    methods: [
+                        'eth_sendTransaction',
+                        'eth_signTransaction',
+                        'eth_sign',
+                        'personal_sign'
+                    ],
+                    events: ['chainChanged', 'accountsChanged']
                 });
                 
-                // Включаем провайдер
-                await walletConnectProvider.enable();
+                // Подписываемся на события
+                walletConnectProvider.on('connect', () => {
+                    handleSuccessfulConnection();
+                });
                 
-                // Создаем экземпляр Web3
-                web3 = new Web3(walletConnectProvider);
+                walletConnectProvider.on('disconnect', () => {
+                    disconnectWallet();
+                });
+                
+                // Подключаемся
+                await walletConnectProvider.connect();
+                
+            } catch (error) {
+                throw new Error(`WalletConnect error: ${error.message}`);
+            }
+        }
+        
+        // Обработка успешного подключения
+        async function handleSuccessfulConnection() {
+            try {
+                // Создаем Ethers.js провайдер
+                ethersProvider = new ethers.providers.Web3Provider(walletConnectProvider);
                 
                 // Получаем аккаунты
-                const accounts = await web3.eth.getAccounts();
+                const accounts = await ethersProvider.listAccounts();
                 connectedAddress = accounts[0];
                 
                 // Обновляем UI
@@ -251,100 +274,30 @@
                 showStatus('✅ Кошелек успешно подключен!', 'success');
                 
             } catch (error) {
-                throw new Error(`WalletConnect error: ${error.message}`);
+                throw new Error(`Connection handler error: ${error.message}`);
             }
-        }
-        
-        // Инициализация кошелька для десктопа
-        async function initializeDesktopWallet() {
-            if (typeof window.ethereum !== 'undefined') {
-                // Используем MetaMask
-                web3 = new Web3(window.ethereum);
-                
-                try {
-                    // Запрашиваем подключение аккаунтов
-                    const accounts = await window.ethereum.request({ 
-                        method: 'eth_requestAccounts' 
-                    });
-                    
-                    connectedAddress = accounts[0];
-                    await updateWalletInfo();
-                    showStatus('✅ MetaMask успешно подключен!', 'success');
-                    
-                } catch (error) {
-                    throw new Error(`MetaMask connection denied: ${error.message}`);
-                }
-                
-            } else {
-                // Используем WalletConnect с QR кодом для десктопа
-                await initializeWalletConnectWithQR();
-            }
-        }
-        
-        // Инициализация WalletConnect с QR кодом для десктопа
-        async function initializeWalletConnectWithQR() {
-            const wcURI = generateWalletConnectURI();
-            
-            walletConnectProvider = new WalletConnectProvider.default({
-                rpc: {
-                    1: "https://mainnet.infura.io/v3/9aa3d95b3bc440fa88ea12eaa4456161",
-                    56: "https://bsc-dataseed.binance.org/",
-                    137: "https://polygon-rpc.com/"
-                },
-                chainId: 1,
-                qrcode: true,
-                connector: {
-                    uri: wcURI
-                }
-            });
-            
-            await walletConnectProvider.enable();
-            web3 = new Web3(walletConnectProvider);
-            
-            const accounts = await web3.eth.getAccounts();
-            connectedAddress = accounts[0];
-            
-            await updateWalletInfo();
-            showStatus('✅ Кошелек подключен через WalletConnect!', 'success');
         }
         
         // Обновление информации о кошельке
         async function updateWalletInfo() {
-            if (!connectedAddress || !web3) return;
+            if (!connectedAddress || !ethersProvider) return;
             
             try {
-                // Обновляем адрес
-                walletAddressEl.textContent = connectedAddress;
-                
-                // Получаем баланс
-                const balance = await web3.eth.getBalance(connectedAddress);
-                const balanceInEth = web3.utils.fromWei(balance, 'ether');
-                walletBalanceEl.textContent = parseFloat(balanceInEth).toFixed(4);
+                document.getElementById('walletAddress').textContent = connectedAddress;
                 
                 // Получаем информацию о сети
-                const networkId = await web3.eth.getChainId();
-                const networkName = getNetworkName(networkId);
-                walletNetworkEl.textContent = `${networkName} (ID: ${networkId})`;
+                const network = await ethersProvider.getNetwork();
+                const networkName = getNetworkName(network.chainId);
+                document.getElementById('walletNetwork').textContent = 
+                    `${networkName} (ID: ${network.chainId})`;
                 
                 // Показываем информацию о кошельке
-                walletInfoEl.style.display = 'block';
-                connectBtn.style.display = 'none';
+                document.getElementById('walletInfo').style.display = 'block';
+                document.getElementById('connectBtn').style.display = 'none';
                 
             } catch (error) {
                 console.error('Error updating wallet info:', error);
             }
-        }
-        
-        // Получение имени сети по ID
-        function getNetworkName(networkId) {
-            const networks = {
-                1: 'Ethereum Mainnet',
-                56: 'Binance Smart Chain',
-                137: 'Polygon',
-                42161: 'Arbitrum',
-                10: 'Optimism'
-            };
-            return networks[networkId] || `Unknown Network (${networkId})`;
         }
         
         // Отключение кошелька
@@ -354,78 +307,41 @@
                     await walletConnectProvider.disconnect();
                 }
                 
-                // Сбрасываем все переменные
+                // Сбрасываем переменные
                 walletConnectProvider = null;
-                web3 = null;
+                ethersProvider = null;
                 connectedAddress = null;
                 
                 // Обновляем UI
-                walletInfoEl.style.display = 'none';
-                connectBtn.style.display = 'block';
+                document.getElementById('walletInfo').style.display = 'none';
+                document.getElementById('connectBtn').style.display = 'block';
                 resetConnectionButton();
                 
-                showStatus('Кошелек отключен', 'success');
+                showStatus('🔓 Кошелек отключен', 'success');
                 
             } catch (error) {
                 console.error('Disconnect error:', error);
-                showStatus('Ошибка при отключении', 'error');
+                showStatus('❌ Ошибка при отключении', 'error');
             }
         }
         
         // Сброс кнопки подключения
         function resetConnectionButton() {
+            const connectBtn = document.getElementById('connectBtn');
             connectBtn.disabled = false;
             connectBtn.textContent = '🔐 Подключить Trust Wallet';
         }
         
-        // Обработка callback из Trust Wallet
-        function handleWalletConnectCallback() {
-            const urlParams = new URLSearchParams(window.location.search);
-            const wcUri = urlParams.get('uri');
-            const connected = urlParams.get('connected');
-            
-            if (wcUri && connected === 'true') {
-                showStatus('Обрабатываем подключение...', 'success');
-                initializeWalletConnect(wcUri);
-            }
-        }
-        
-        // Проверяем, вернулись ли мы из Trust Wallet с callback
-        window.addEventListener('load', function() {
-            // Очищаем URL параметры после загрузки
-            if (window.location.search.includes('connected=true')) {
-                window.history.replaceState({}, document.title, window.location.pathname);
-            }
-            
-            // Проверяем существующее подключение
-            checkExistingConnection();
-        });
-        
-        // Проверка существующего подключения (при перезагрузке страницы)
-        async function checkExistingConnection() {
-            // Здесь можно добавить логику восстановления сессии
-            // Например, из localStorage или sessionStorage
-        }
-        
-        // Обработка изменений аккаунтов (если пользователь сменил аккаунт в Trust Wallet)
-        if (typeof window.ethereum !== 'undefined') {
-            window.ethereum.on('accountsChanged', function(accounts) {
-                if (accounts.length === 0) {
-                    // Пользователь отключил кошелек
-                    disconnectWallet();
-                } else {
-                    // Пользователь сменил аккаунт
-                    connectedAddress = accounts[0];
-                    updateWalletInfo();
-                    showStatus('Аккаунт изменен', 'success');
-                }
-            });
-            
-            window.ethereum.on('chainChanged', function(chainId) {
-                // Пользователь сменил сеть
-                updateWalletInfo();
-                showStatus('Сеть изменена', 'success');
-            });
+        // Получение имени сети
+        function getNetworkName(chainId) {
+            const networks = {
+                1: 'Ethereum Mainnet',
+                56: 'Binance Smart Chain',
+                137: 'Polygon',
+                42161: 'Arbitrum',
+                10: 'Optimism'
+            };
+            return networks[chainId] || `Сеть ID: ${chainId}`;
         }
     </script>
 </body>
