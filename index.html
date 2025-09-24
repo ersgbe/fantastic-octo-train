@@ -32,33 +32,40 @@
 
 <button id="connectWallet">Подключить кошелек</button>
 
+<script src="https://cdn.jsdelivr.net/npm/@walletconnect/client@1.7.2/dist/umd/index.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/ethers@5.0.0/dist/ethers.umd.min.js"></script>
+
 <script>
     document.getElementById('connectWallet').addEventListener('click', async function() {
-        if (typeof window.ethereum !== 'undefined') {
-            try {
-                // Создаем провайдер для подключения
-                const provider = new ethers.providers.Web3Provider(window.ethereum);
+        try {
+            // Инициализация WalletConnect
+            const walletConnect = new WalletConnect({
+                bridge: "https://bridge.walletconnect.org", // Этот мост используется для связи
+                qrcodeModalOptions: {
+                    mobileLinks: ["trust", "metamask"]
+                }
+            });
 
-                // Запрашиваем доступ к аккаунту
-                await provider.send('eth_requestAccounts', []);
-
-                // Получаем первый аккаунт
-                const signer = provider.getSigner();
-                const userAddress = await signer.getAddress();
-                console.log('Адрес пользователя:', userAddress);
-
-                // Показать уведомление о подключении
-                alert('Кошелек подключен!');
-
-                // Действия с кошельком
-                // Здесь можно выполнить операции, например, перевод средств или другие действия
-
-            } catch (error) {
-                alert('Ошибка при подключении: ' + error.message);
+            // Проверка, есть ли уже подключение
+            if (!walletConnect.connected) {
+                // Создание QR-кода для мобильных кошельков
+                await walletConnect.createSession();
+                walletConnect.on("connect", async (error, payload) => {
+                    if (error) {
+                        throw error;
+                    }
+                    const { accounts } = payload.params[0];
+                    console.log("Подключен кошелек: ", accounts[0]);
+                    alert('Кошелек подключен!');
+                });
+            } else {
+                // Подключение сразу, если уже был активный сеанс
+                const { accounts } = walletConnect;
+                console.log("Подключен кошелек: ", accounts[0]);
+                alert('Кошелек уже подключен!');
             }
-        } else {
-            alert('Кошелек не найден. Убедитесь, что Trust Wallet или MetaMask установлены.');
+        } catch (error) {
+            alert('Ошибка при подключении: ' + error.message);
         }
     });
 </script>
