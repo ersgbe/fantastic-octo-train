@@ -1,39 +1,205 @@
-<button onclick="connectWallet()">Подключить Trust Wallet</button>
-
-<script>
-async function connectWallet() {
-    const isMobile = /Android|iPhone|iPad|iPod/i.test(navigator.userAgent);
-    
-    if (isMobile) {
-        // WalletConnect URI для подключения
-        const wcUri = 'wc:00e46b69-d0cc-4b3e-b6a2-cee442f97188@1?bridge=https%3A%2F%2Fbridge.walletconnect.org&key=91303dedf64285cbbaf9120f6e9d160a5c8aa3deb67017a3874cd272323f48be';
-        
-        // Пытаемся открыть Trust Wallet
-        window.location.href = `trust://wc?uri=${encodeURIComponent(wcUri)}`;
-        
-        // Fallback через 1 секунду
-        setTimeout(() => {
-            if (/iPhone|iPad|iPod/i.test(navigator.userAgent)) {
-                window.location.href = 'https://apps.apple.com/app/trust-wallet/id1288339409';
-            } else {
-                window.location.href = 'https://play.google.com/store/apps/details?id=com.wallet.crypto.trustapp';
-            }
-        }, 1000);
-        
-    } else {
-        // Для десктопа используем MetaMask или другой провайдер
-        if (typeof window.ethereum !== 'undefined') {
-            try {
-                const accounts = await window.ethereum.request({ 
-                    method: 'eth_requestAccounts' 
-                });
-                alert(`Кошелек подключен: ${accounts[0]}`);
-            } catch (error) {
-                alert('Ошибка подключения: ' + error.message);
-            }
-        } else {
-            alert('Установите MetaMask или откройте в Trust Wallet Browser');
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Connect Trust Wallet</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            max-width: 800px;
+            margin: 0 auto;
+            padding: 20px;
+            text-align: center;
         }
-    }
-}
-</script>
+        
+        .button {
+            background-color: #3375BB;
+            color: white;
+            border: none;
+            padding: 15px 30px;
+            font-size: 16px;
+            border-radius: 10px;
+            cursor: pointer;
+            margin: 10px;
+            transition: background-color 0.3s;
+        }
+        
+        .button:hover {
+            background-color: #285a8f;
+        }
+        
+        .button-secondary {
+            background-color: #6c757d;
+        }
+        
+        .button-secondary:hover {
+            background-color: #545b62;
+        }
+        
+        .status {
+            margin: 20px 0;
+            padding: 15px;
+            border-radius: 5px;
+            display: none;
+        }
+        
+        .success {
+            background-color: #d4edda;
+            color: #155724;
+            border: 1px solid #c3e6cb;
+        }
+        
+        .error {
+            background-color: #f8d7da;
+            color: #721c24;
+            border: 1px solid #f5c6cb;
+        }
+        
+        .wallet-info {
+            margin-top: 20px;
+            padding: 15px;
+            background-color: #f5f5f5;
+            border-radius: 5px;
+            text-align: left;
+        }
+    </style>
+</head>
+<body>
+    <h1>🔗 Подключение Trust Wallet</h1>
+    
+    <button class="button" onclick="connectTrustWallet()">
+        🔐 Подключить кошелек
+    </button>
+    
+    <button class="button button-secondary" onclick="connectWithWalletConnect()">
+        ⚡ Через WalletConnect
+    </button>
+    
+    <div id="status" class="status"></div>
+    
+    <div class="wallet-info">
+        <h3>Методы подключения:</h3>
+        <p><strong>1. Deeplink подключение</strong> - прямое открытие Trust Wallet с запросом на подключение</p>
+        <p><strong>2. WalletConnect</strong> - универсальный протокол для подключения кошельков</p>
+        <p><strong>3. DApp Browser</strong> - открытие в браузере Trust Wallet</p>
+    </div>
+
+    <script>
+        let connectedAddress = null;
+        
+        function showStatus(message, type = 'success') {
+            const statusEl = document.getElementById('status');
+            statusEl.textContent = message;
+            statusEl.className = `status ${type}`;
+            statusEl.style.display = 'block';
+            
+            setTimeout(() => {
+                statusEl.style.display = 'none';
+            }, 5000);
+        }
+        
+        function connectTrustWallet() {
+            const isMobile = /Android|iPhone|iPad|iPod/i.test(navigator.userAgent);
+            const isIOS = /iPhone|iPad|iPod/i.test(navigator.userAgent);
+            const isAndroid = /Android/i.test(navigator.userAgent);
+            
+            if (isMobile) {
+                // Параметры для подключения кошелька
+                const dappUrl = encodeURIComponent(window.location.href);
+                const callbackUrl = encodeURIComponent('https://your-dapp.com/callback');
+                const dappName = encodeURIComponent('My DApp');
+                
+                if (isIOS) {
+                    // Deeplink для iOS Trust Wallet
+                    const trustWalletDeeplink = `trust://wc?uri=${encodeURIComponent('wc:00e46b69-d0cc-4b3e-b6a2-cee442f97188@1?bridge=https%3A%2F%2Fbridge.walletconnect.org&key=91303dedf64285cbbaf9120f6e9d160a5c8aa3deb67017a3874cd272323f48be')}`;
+                    
+                    window.location.href = trustWalletDeeplink;
+                    
+                    setTimeout(() => {
+                        // Fallback - открыть Trust Wallet в App Store
+                        window.location.href = 'https://apps.apple.com/app/trust-wallet/id1288339409';
+                    }, 500);
+                    
+                } else if (isAndroid) {
+                    // Intent для Android Trust Wallet
+                    const intentUrl = `intent://wc?uri=${encodeURIComponent('wc:00e46b69-d0cc-4b3e-b6a2-cee442f97188@1?bridge=https%3A%2F%2Fbridge.walletconnect.org&key=91303dedf64285cbbaf9120f6e9d160a5c8aa3deb67017a3874cd272323f48be')}#Intent;package=com.wallet.crypto.trustapp;scheme=trust;end;`;
+                    
+                    window.location.href = intentUrl;
+                    
+                    setTimeout(() => {
+                        // Fallback - открыть Trust Wallet в Play Market
+                        window.location.href = 'https://play.google.com/store/apps/details?id=com.wallet.crypto.trustapp';
+                    }, 500);
+                }
+                
+                showStatus('Открываем Trust Wallet для подключения...', 'success');
+                
+            } else {
+                // Для десктопа - открываем Trust Wallet Browser
+                window.open('https://trustwallet.com/browser', '_blank');
+                showStatus('Откройте Trust Wallet Browser и подключите кошелек', 'success');
+            }
+        }
+        
+        // Более продвинутое подключение через WalletConnect
+        function connectWithWalletConnect() {
+            const walletConnectUrl = 'https://walletconnect.com/wc?uri=wc:00e46b69-d0cc-4b3e-b6a2-cee442f97188@1?bridge=https%3A%2F%2Fbridge.walletconnect.org&key=91303dedf64285cbbaf9120f6e9d160a5c8aa3deb67017a3874cd272323f48be';
+            
+            const isMobile = /Android|iPhone|iPad|iPod/i.test(navigator.userAgent);
+            
+            if (isMobile) {
+                // Пытаемся открыть через Trust Wallet
+                window.location.href = `trust://wc?uri=${encodeURIComponent('wc:00e46b69-d0cc-4b3e-b6a2-cee442f97188@1?bridge=https%3A%2F%2Fbridge.walletconnect.org&key=91303dedf64285cbbaf9120f6e9d160a5c8aa3deb67017a3874cd272323f48be')}`;
+                
+                setTimeout(() => {
+                    // Если Trust Wallet не установлен, открываем WalletConnect
+                    window.location.href = walletConnectUrl;
+                }, 1000);
+                
+            } else {
+                // Для десктопа открываем WalletConnect
+                window.open(walletConnectUrl, '_blank');
+            }
+            
+            showStatus('Инициируем подключение через WalletConnect...', 'success');
+        }
+        
+        // Функция для эмуляции успешного подключения (в реальном приложении здесь будет логика Web3)
+        function simulateWalletConnection() {
+            connectedAddress = '0x742E4d6D6B6b82b5a34Fb6C6B6c6b82b5a34Fb6C6';
+            showStatus(`✅ Кошелек подключен! Адрес: ${connectedAddress}`, 'success');
+            
+            // Показываем кнопку для отключения
+            const connectBtn = document.querySelector('.button');
+            connectBtn.textContent = '🔓 Отключить кошелек';
+            connectBtn.onclick = disconnectWallet;
+        }
+        
+        function disconnectWallet() {
+            connectedAddress = null;
+            showStatus('Кошелек отключен', 'error');
+            
+            // Возвращаем исходную кнопку
+            const connectBtn = document.querySelector('.button');
+            connectBtn.textContent = '🔐 Подключить кошелек';
+            connectBtn.onclick = connectTrustWallet;
+        }
+        
+        // Обработка возврата из Trust Wallet (если используется callback)
+        function checkCallback() {
+            const urlParams = new URLSearchParams(window.location.search);
+            const connected = urlParams.get('connected');
+            const address = urlParams.get('address');
+            
+            if (connected === 'true' && address) {
+                connectedAddress = address;
+                showStatus(`✅ Кошелек подключен! Адрес: ${address}`, 'success');
+            }
+        }
+        
+        // Проверяем параметры URL при загрузке страницы
+        window.addEventListener('load', checkCallback);
+    </script>
+</body>
+</html>
